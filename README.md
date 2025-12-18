@@ -38,16 +38,18 @@ The platform is built with systems engineering rigor, focusing on determinism, t
 
 ## 📁 Project Structure
 
+```text
 ast-vdp/
 ├── CMakeLists.txt
-├── include/astvdp/ # Public interfaces
+├── include/astvdp/          # Public interfaces
 ├── src/
-│ ├── core/ # Database, utilities
-│ ├── ingest/ # CSV + real-time ingest
-│ ├── fusion/ # Sensor fusion filters
-│ ├── verification/ # Safety envelope checks
-│ ├── diagnostics/ # Predictive health monitoring
-│ ├── analysis/ # Metrics and scoring engine
+│   ├── core/               # Database, utilities
+│   ├── ingest/             # CSV + real-time ingest
+│   ├── fusion/             # Sensor fusion filters
+│   ├── verification/       # Safety envelope checks
+│   ├── diagnostics/        # Predictive health monitoring
+│   ├── analysis/           # Metrics and scoring engine
+
 
 
 ---

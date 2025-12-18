@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AST-VDP Report - {{MISSION_ID}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { background: #f0f0f0; padding: 10px; border-radius: 4px; }
+        .metric-box { display: inline-block; margin: 10px; padding: 8px; background: #eef; border-radius: 4px; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #999; padding: 6px; text-align: left; }
+        .critical { background-color: #ffcccc; }
+        .major { background-color: #ffebcc; }
+        .minor { background-color: #ffffcc; }
+        .observation { background-color: #ffffff; }
+        .verdict-pass { color: green; font-weight: bold; }
+        .verdict-fail { color: red; font-weight: bold; }
+        .verdict-obs { color: orange; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Aviation Systems Test Report</h1>
+        <p><strong>Mission:</strong> {{MISSION_ID}} | <strong>Aircraft:</strong> {{AIRCRAFT}}</p>
+        <p><strong>Duration:</strong> {{DURATION_SEC}} sec</p>
+    </div>
+
+    <div>
+        <div class="metric-box">Stability Index: {{STABILITY_INDEX}}</div>
+        <div class="metric-box">Sensor Reliability: {{SENSOR_RELIABILITY}}</div>
+        <div class="metric-box">Mission Compliance: {{MISSION_COMPLIANCE}}</div>
+        <div class="metric-box">Risk Classification: <span class="verdict-{{RISK_CLASS_LOW}}">{{RISK_CLASS}}</span></div>
+    </div>
+
+    <h2>Verdict: <span class="{{VERDICT_CLASS}}">{{VERDICT}}</span></h2>
+
+    <h3>Anomaly Timeline</h3>
+    <table>
+        <thead>
+            <tr><th>Time (sec)</th><th>Type</th><th>Parameter</th><th>Severity</th><th>Details</th></tr>
+        </thead>
+        <tbody>
+{{ANOMALY_ROWS}}
+        </tbody>
+    </table>
+
+    <h3>Flight Envelope Plots</h3>
+    <p><img src="altitude_plot.png" width="48%"><img src="qdyn_plot.png" width="48%"></p>
+    <p><img src="rates_plot.png" width="48%"><img src="vibration_plot.png" width="48%"></p>
+</body>
+</html>

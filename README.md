@@ -1,171 +1,163 @@
-# Aviation Systems Test, Verification & Predictive Diagnostics Platform (AST-VDP)
+# AST-VDP
 
-**Engineer-grade flight test analysis for aerospace verification workflows**
+Aviation Systems Test, Verification and Predictive Diagnostics Platform (AST-VDP) is a C++17 ground-analysis CLI for flight test data.
 
-Free tools · C++17 · SQLite · DO-178C-aware
+## What It Does
 
----
+- Ingests simulated or CSV flight data
+- Fuses IMU and GNSS-derived state
+- Runs safety envelope checks and diagnostics
+- Stores sessions, raw data, anomalies, and metrics in SQLite
+- Produces an HTML engineering report (optional PDF export)
 
-## 🎯 Purpose
+## Requirements
 
-AST-VDP is a ground-based flight test and verification platform designed to support aerospace engineering and certification workflows.
+Primary target: Windows (Visual Studio 2022 Build Tools).
 
-It enables:
+| Component | Required |
+| --- | --- |
+| CMake | 3.20+ and available in `PATH` |
+| Compiler toolchain | MSVC (VS 2022 Build Tools) |
+| Dependency manager | vcpkg (external install) |
+| Library | SQLite3 (via vcpkg manifest) |
+| Optional | `wkhtmltopdf` in `PATH` for `--pdf` |
 
-- Ingesting real or simulated flight data  
-- Fusing IMU, GPS, pressure, and vibration sensor inputs  
-- Enforcing aircraft safety and performance envelopes  
-- Detecting anomalies, drifts, and early fault precursors  
-- Generating traceable, engineer-reviewed reports  
+## Dependency Model
 
-The platform is built with systems engineering rigor, focusing on determinism, traceability, and auditability.
+This repo uses external vcpkg manifest mode (`vcpkg.json`). The repository does not track a vendored `vcpkg/` checkout.
 
----
+You must set:
 
-## 🛠️ Requirements (All Free)
+- `VCPKG_ROOT` -> absolute path to your vcpkg installation root
 
-| Component | Tool |
-|---------|------|
-| Compiler | GCC ≥ 11, Clang ≥ 14, or MSVC (Visual Studio 2022) |
-| Build System | CMake ≥ 3.20 |
-| Package Manager | vcpkg (optional, recommended) |
-| Libraries | SQLite3, Eigen3 |
-| Reporting | wkhtmltopdf (optional, for PDF export) |
+Example (PowerShell):
 
-**Windows tip:** Install Visual Studio 2022 Community with C++ and CMake support.
+```powershell
+$env:VCPKG_ROOT = "C:\dev\vcpkg"
+```
 
----
+## Build (Windows, Presets)
 
-## 📁 Project Structure
+From project root:
+
+```powershell
+cmake --preset windows-msvc-release
+cmake --build --preset windows-msvc-release
+```
+
+Executable output:
+
+`build/windows-msvc-release/Release/astvdp.exe`
+
+### Windows fallback build (no vcpkg toolchain)
+
+If vcpkg toolchain bootstrap is unavailable in your environment, AST-VDP can still build on Windows via SDK `winsqlite3` fallback:
+
+```powershell
+cmake --preset windows-msvc-local
+cmake --build --preset windows-msvc-local
+```
+
+Executable output:
+
+`build/windows-msvc-local/Release/astvdp.exe`
+
+## Run
+
+### 1) Simulation run
+
+```powershell
+.\build\windows-msvc-release\Release\astvdp.exe --simulate
+```
+
+### 2) CSV input run
+
+```powershell
+.\build\windows-msvc-release\Release\astvdp.exe `
+  --input examples/sample_flight.csv `
+  --mission REAL-01 `
+  --aircraft F16
+```
+
+### 3) Optional PDF export
+
+```powershell
+.\build\windows-msvc-release\Release\astvdp.exe --simulate --pdf
+```
+
+If `wkhtmltopdf` is not installed/in `PATH`, the run still completes and prints a PDF-specific warning.
+
+## CLI Options
+
+```text
+--help
+--simulate
+--input <file.csv>
+--mission <id>
+--aircraft <type>
+--output-dir <dir>     (default: output)
+--db-path <file.db>    (default: <output-dir>/test.db)
+--pdf                  (optional PDF conversion)
+```
+
+## Outputs
+
+Default outputs (under `output/`):
+
+- `test.db` - SQLite database with sessions, data, anomalies, metrics
+- `sim_flight.csv` - generated only when using `--simulate`
+- `report.html` - generated report
+- `report.pdf` - only when `--pdf` is used and `wkhtmltopdf` is available
+
+## Tests
+
+CTest smoke tests are configured in CMake:
+
+```powershell
+ctest --preset windows-msvc-release
+```
+
+or, for local fallback builds:
+
+```powershell
+ctest --preset windows-msvc-local
+```
+
+Included tests:
+
+- `astvdp_help`
+- `astvdp_simulate_smoke`
+
+## Troubleshooting
+
+1. `cmake` not recognized
+- Install CMake and ensure `cmake.exe` is in `PATH`.
+
+2. `VCPKG_ROOT` not set or invalid
+- Set `VCPKG_ROOT` to your vcpkg root before running configure.
+
+3. SQLite not found during configure
+- Ensure vcpkg manifest mode can resolve `sqlite3` and toolchain path is valid.
+- On Windows, fallback configure without vcpkg toolchain (above) links to `winsqlite3` from the Windows SDK.
+
+4. PDF generation fails
+- Install `wkhtmltopdf` and ensure it is in `PATH`, then rerun with `--pdf`.
+
+## Project Layout
 
 ```text
 ast-vdp/
-├── CMakeLists.txt
-├── include/astvdp/          # Public interfaces
-├── src/
-│   ├── core/               # Database, utilities
-│   ├── ingest/             # CSV + real-time ingest
-│   ├── fusion/             # Sensor fusion filters
-│   ├── verification/       # Safety envelope checks
-│   ├── diagnostics/        # Predictive health monitoring
-│   ├── analysis/           # Metrics and scoring engine
+  CMakeLists.txt
+  CMakePresets.json
+  vcpkg.json
+  include/astvdp/
+  src/
+  database/schema.sql
+  docs/templates/report_template.html
+  docs/audit-log.md
+  examples/sample_flight.csv
+```
 
+## License
 
-
----
-
-## ⚙️ Build Instructions
-
-### 1️⃣ Install Dependencies
-
-#### Windows (vcpkg)
-
-```powershell
-git clone https://github.com/microsoft/vcpkg
-.\vcpkg\bootstrap-vcpkg.bat
-.\vcpkg\vcpkg install sqlite3:x64-windows eigen3:x64-windows
-Linux (Debian / Ubuntu)
-bash
-Copy code
-sudo apt install build-essential cmake libsqlite3-dev libeigen3-dev
-2️⃣ Build
-powershell
-Copy code
-# From project root
-mkdir build
-cd build
-
-# Windows (Visual Studio)
-cmake .. -G "Visual Studio 17 2022" -A x64 `
-  -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-cmake --build . --config Release
-
-# Linux / Ninja
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make
-Note: If not using vcpkg, ensure SQLite3 and Eigen3 are available in default include paths.
-
-▶️ How to Run
-Option 1: Simulate Flight (with injected faults)
-powershell
-Copy code
-.\Release\astvdp.exe --simulate
-Option 2: Analyze Real CSV Log
-powershell
-Copy code
-.\Release\astvdp.exe --input examples/sample_flight.csv --mission REAL-01 --aircraft F16
-Output
-output/test.db – Full session database with detected anomalies
-
-output/report.html – Engineer-review report
-
-output/report.pdf – Optional (requires wkhtmltopdf)
-
-🧪 How to Test
-Build the executable
-
-Run simulation test:
-
-powershell
-Copy code
-.\Release\astvdp.exe --simulate
-✅ Expected Results
-No crashes
-
-output/report.html generated
-
-Report shows Risk Classification: Major (due to injected GNSS dropout + vibration fault)
-
-Validate report contents:
-
-Metrics values < 100%
-
-Anomaly table includes:
-
-gnss_dropout
-
-vibration_buildup
-
-Verdict: FAIL
-
-(Optional) Inspect database:
-
-powershell
-Copy code
-sqlite3 output/test.db "SELECT type, severity FROM anomalies;"
-📊 Report Features
-The HTML report includes:
-
-Summary metrics: Stability Index, Sensor Reliability, Mission Compliance
-
-Risk classification: Critical / Major / Minor / Observation
-
-Timestamped anomaly timeline with severity highlighting
-
-Final verdict: PASS / FAIL / OBSERVATIONS
-
-Why HTML?
-Portable, version-controllable, printable, and reviewable without proprietary tools—suitable for certification and audit workflows.
-
-🧰 Design Principles
-Modular: Ingest, fusion, verification, and diagnostics are isolated for independent validation
-
-Traceable: Every anomaly links to a defined safety envelope or diagnostic rule
-
-Deterministic: Predictable execution and reproducible results
-
-Ground-tool compliant: Engineered for aerospace verification use
-
-Lean: Minimal dependencies and focused scope
-
-📜 License
-MIT License — free for commercial and personal use.
-
-🚀 Next Steps (Planned)
-Add Matplot++ envelope plots (altitude, dynamic pressure, rates)
-
-Support UDP / serial real-time streaming
-
-Add requirement-ID traceability in reports
-
-CLI option for PDF export
+MIT (as intended by project metadata).

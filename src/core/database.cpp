@@ -1,5 +1,7 @@
 #include "database.h"
-#include <sqlite3.h>
+#include "astvdp/sqlite_compat.h"
+#include <ctime>
+#include <filesystem>
 #include <string>
 
 namespace astvdp {
@@ -11,8 +13,28 @@ Database::~Database() {
 }
 
 bool Database::open() {
+    if (db_) return true;
+
+    std::error_code ec;
+    std::filesystem::path db_path(path_);
+    if (db_path.has_parent_path()) {
+        std::filesystem::create_directories(db_path.parent_path(), ec);
+    }
+
     int rc = sqlite3_open(path_.c_str(), &db_);
-    return (rc == SQLITE_OK);
+    if (rc != SQLITE_OK) {
+        close();
+        return false;
+    }
+
+    sqlite3_exec(db_, "PRAGMA foreign_keys = ON;", nullptr, nullptr, nullptr);
+
+    if (!initializeSchema()) {
+        close();
+        return false;
+    }
+
+    return true;
 }
 
 void Database::close() {
@@ -29,7 +51,7 @@ int64_t Database::startSession(const std::string& mission_id, const std::string&
     if (rc != SQLITE_OK) return -1;
 
     sqlite3_bind_text(stmt, 1, mission_id.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_double(stmt, 2, std::time(nullptr));
+    sqlite3_bind_double(stmt, 2, static_cast<double>(std::time(nullptr)));
     sqlite3_bind_text(stmt, 3, aircraft.c_str(), -1, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
@@ -125,6 +147,79 @@ bool Database::saveSessionMetrics(int64_t session_id, double stability, double r
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     return (rc == SQLITE_DONE);
+}
+
+bool Database::initializeSchema() {
+    static const char* kSchemaSql = R"SQL(
+CREATE TABLE IF NOT EXISTS flight_sessions (
+    id INTEGER PRIMARY KEY,
+    mission_id TEXT NOT NULL,
+    start_time REAL NOT NULL,
+    end_time REAL,
+    aircraft_type TEXT
+);
+
+CREATE TABLE IF NOT EXISTS flight_data (
+    id INTEGER PRIMARY KEY,
+    session_id INTEGER NOT NULL,
+    timestamp REAL NOT NULL,
+    imu_ax REAL, imu_ay REAL, imu_az REAL,
+    imu_gx REAL, imu_gy REAL, imu_gz REAL,
+    gps_lat REAL, gps_lon REAL, gps_alt REAL,
+    gps_vx REAL, gps_vy REAL,
+    static_pressure REAL,
+    temperature REAL,
+    vibration_x REAL, vibration_y REAL, vibration_z REAL,
+    FOREIGN KEY(session_id) REFERENCES flight_sessions(id)
+);
+
+CREATE TABLE IF NOT EXISTS safety_limits (
+    id INTEGER PRIMARY KEY,
+    param_name TEXT NOT NULL UNIQUE,
+    min_val REAL,
+    max_val REAL,
+    unit TEXT,
+    description TEXT
+);
+
+CREATE TABLE IF NOT EXISTS anomalies (
+    id INTEGER PRIMARY KEY,
+    session_id INTEGER NOT NULL,
+    timestamp REAL NOT NULL,
+    type TEXT NOT NULL,
+    param_affected TEXT,
+    severity TEXT,
+    details TEXT,
+    FOREIGN KEY(session_id) REFERENCES flight_sessions(id)
+);
+
+CREATE TABLE IF NOT EXISTS verification_results (
+    id INTEGER PRIMARY KEY,
+    session_id INTEGER NOT NULL,
+    req_id TEXT NOT NULL,
+    result TEXT NOT NULL,
+    evidence TEXT,
+    FOREIGN KEY(session_id) REFERENCES flight_sessions(id)
+);
+
+CREATE TABLE IF NOT EXISTS session_metrics (
+    session_id INTEGER PRIMARY KEY,
+    stability_index REAL,
+    sensor_reliability REAL,
+    mission_compliance REAL,
+    risk_classification TEXT,
+    FOREIGN KEY(session_id) REFERENCES flight_sessions(id)
+);
+)SQL";
+
+    char* err_msg = nullptr;
+    int rc = sqlite3_exec(db_, kSchemaSql, nullptr, nullptr, &err_msg);
+    if (rc != SQLITE_OK) {
+        sqlite3_free(err_msg);
+        return false;
+    }
+
+    return true;
 }
 
 }  // namespace astvdp

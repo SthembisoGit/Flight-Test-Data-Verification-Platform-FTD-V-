@@ -28,6 +28,8 @@ public:
                             double compliance, const std::string& risk_class);
 
 private:
+    bool initializeSchema();
+
     std::string path_;
     sqlite3* db_ = nullptr;
 };

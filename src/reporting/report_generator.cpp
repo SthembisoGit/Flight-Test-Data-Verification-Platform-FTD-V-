@@ -1,8 +1,11 @@
 #include "report_generator.h"
 #include "analysis/metrics_engine.h"
+#include <cctype>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <cstdlib>
+#include <vector>
 
 namespace astvdp {
 
@@ -17,8 +20,27 @@ static std::string severityToString(Severity s) {
 
 static std::string toLower(const std::string& s) {
     std::string r = s;
-    for (auto& c : r) c = std::tolower(c);
+    for (auto& c : r) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return r;
+}
+
+static std::filesystem::path resolveTemplatePath() {
+    std::vector<std::filesystem::path> candidates;
+
+    candidates.emplace_back("docs/templates/report_template.html");
+    candidates.emplace_back(std::filesystem::current_path() / "docs" / "templates" / "report_template.html");
+#ifdef ASTVDP_SOURCE_DIR
+    candidates.emplace_back(std::filesystem::path(ASTVDP_SOURCE_DIR) / "docs" / "templates" / "report_template.html");
+#endif
+
+    std::error_code ec;
+    for (const auto& path : candidates) {
+        if (std::filesystem::exists(path, ec)) {
+            return path;
+        }
+    }
+
+    return {};
 }
 
 static std::string verdictFromClass(const std::string& risk) {
@@ -36,7 +58,10 @@ bool ReportGenerator::generateHtmlReport(
     const SessionMetrics& metrics,
     const std::vector<Anomaly>& anomalies) {
 
-    std::ifstream ifs("docs/templates/report_template.html");
+    const std::filesystem::path template_path = resolveTemplatePath();
+    if (template_path.empty()) return false;
+
+    std::ifstream ifs(template_path);
     if (!ifs.is_open()) return false;
 
     std::string content((std::istreambuf_iterator<char>(ifs)),
@@ -83,7 +108,10 @@ bool ReportGenerator::generateHtmlReport(
     replace("{{ANOMALY_ROWS}}", rows.str());
 
     // Write HTML
-    std::ofstream ofs(output_dir + "/report.html");
+    std::error_code ec;
+    std::filesystem::create_directories(output_dir, ec);
+
+    std::ofstream ofs((std::filesystem::path(output_dir) / "report.html").string());
     if (!ofs.is_open()) return false;
     ofs << content;
     ofs.close();

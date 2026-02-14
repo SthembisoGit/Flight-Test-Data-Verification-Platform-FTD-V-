@@ -1,20 +1,30 @@
 #include "safety_verifier.h"
-#include <sqlite3.h>
+#include "astvdp/sqlite_compat.h"
 #include <cmath>
 #include <vector>
 #include <string>
 
 namespace astvdp {
 
+namespace {
+double getOr(const std::unordered_map<std::string, double>& values,
+             const std::string& key,
+             double fallback) {
+    auto it = values.find(key);
+    return (it != values.end()) ? it->second : fallback;
+}
+}  // namespace
+
 static int limitCallback(void* data, int argc, char** argv, char** azColName) {
+    (void)azColName;
     auto* limits = static_cast<std::unordered_map<std::string, double>*>(data);
     if (argc >= 3 && argv[0] && argv[1] && argv[2]) {
         std::string name = argv[0];
         double min_val = std::stod(argv[1]);
         double max_val = std::stod(argv[2]);
         // Store as two entries: "roll_rate_min", "roll_rate_max"
-        limits->insert({name + "_min", min_val});
-        limits->insert({name + "_max", max_val});
+        (*limits)[name + "_min"] = min_val;
+        (*limits)[name + "_max"] = max_val;
     }
     return 0;
 }
@@ -142,12 +152,6 @@ std::vector<Anomaly> SafetyVerifierImpl::check(const FusedState& state,
     }
 
     return anomalies;
-}
-
-// Helper
-double getOr(const std::unordered_map<std::string, double>& m, const std::string& key, double def) {
-    auto it = m.find(key);
-    return (it != m.end()) ? it->second : def;
 }
 
 }  // namespace astvdp

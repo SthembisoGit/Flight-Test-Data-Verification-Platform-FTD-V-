@@ -5,6 +5,8 @@
 
 namespace astvdp {
 
+struct SessionMetrics;
+
 class ReportGenerator {
 public:
     static bool generateHtmlReport(
@@ -12,7 +14,7 @@ public:
         const std::string& mission_id,
         const std::string& aircraft,
         double duration_sec,
-        const class SessionMetrics& metrics,
+        const SessionMetrics& metrics,
         const std::vector<Anomaly>& anomalies
     );
 

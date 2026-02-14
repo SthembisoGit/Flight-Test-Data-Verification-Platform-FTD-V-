@@ -2,7 +2,9 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <argh.h>  
+#include <filesystem>
+#include <system_error>
+#include "argh/argh.h"
 
 #include "astvdp/interfaces.h"
 #include "ingest/csv_ingest.h"
@@ -15,39 +17,60 @@
 #include "simulation/flight_simulator.h"
 
 int main(int argc, char* argv[]) {
-    argh::parser cmdl(argc, argv);
+    argh::parser cmdl;
+    cmdl.add_params({"--input", "--mission", "--aircraft", "--output-dir", "--db-path"});
+    cmdl.parse(argc, argv);
     std::string input_path;
     std::string mission_id = "TEST-001";
     std::string aircraft = "UNKNOWN";
+    std::string output_dir = "output";
+    std::string db_path;
     bool simulate = false;
+    bool generate_pdf = false;
 
     if (cmdl["--help"]) {
         std::cout << "Usage: astvdp [--input <file.csv>] [--simulate] "
-                  << "[--mission <id>] [--aircraft <type>]\n";
+                  << "[--mission <id>] [--aircraft <type>] "
+                  << "[--output-dir <dir>] [--db-path <file.db>] [--pdf]\n";
         return 0;
     }
 
-    if (cmdl("--simulate")) {
-        simulate = true;
-    } else if (cmdl("--input")) {
-        cmdl({"--input"}, "") >> input_path;
-    } else {
+    if (cmdl["--simulate"]) simulate = true;
+    cmdl({"--input"}, "") >> input_path;
+
+    if (simulate && !input_path.empty()) {
+        std::cerr << "Error: Use either --simulate or --input, not both\n";
+        return 1;
+    }
+
+    if (!simulate && input_path.empty()) {
         std::cerr << "Error: Specify --input or --simulate\n";
         return 1;
     }
 
-    if (cmdl("--mission")) cmdl({"--mission"}, "") >> mission_id;
-    if (cmdl("--aircraft")) cmdl({"--aircraft"}, "") >> aircraft;
+    cmdl({"--mission"}, mission_id) >> mission_id;
+    cmdl({"--aircraft"}, aircraft) >> aircraft;
+    cmdl({"--output-dir"}, output_dir) >> output_dir;
+    cmdl({"--db-path"}, "") >> db_path;
+    if (cmdl["--pdf"]) generate_pdf = true;
 
-    // Initialize DB
-    astvdp::Database db("output/test.db");
-    if (!db.open()) {
-        std::cerr << "Failed to open database\n";
+    if (db_path.empty()) {
+        db_path = (std::filesystem::path(output_dir) / "test.db").string();
+    }
+
+    std::error_code fs_err;
+    std::filesystem::create_directories(output_dir, fs_err);
+    if (fs_err) {
+        std::cerr << "Failed to create output directory: " << output_dir << "\n";
         return 1;
     }
 
-    // Create output dir
-    system("mkdir output 2>nul || mkdir output");
+    // Initialize DB
+    astvdp::Database db(db_path);
+    if (!db.open()) {
+        std::cerr << "Failed to open database: " << db_path << "\n";
+        return 1;
+    }
 
     // Generate simulated data if needed
     if (simulate) {
@@ -56,8 +79,12 @@ int main(int argc, char* argv[]) {
         prof.inject_vibration_fault = true;
         prof.inject_gnss_dropout = true;
         auto sim_data = astvdp::FlightSimulator::generate(prof);
-        astvdp::FlightSimulator::saveToCsv(sim_data, "output/sim_flight.csv");
-        input_path = "output/sim_flight.csv";
+        const std::string sim_path = (std::filesystem::path(output_dir) / "sim_flight.csv").string();
+        if (!astvdp::FlightSimulator::saveToCsv(sim_data, sim_path)) {
+            std::cerr << "Failed to write simulated CSV: " << sim_path << "\n";
+            return 1;
+        }
+        input_path = sim_path;
     }
 
     // Ingest
@@ -70,7 +97,7 @@ int main(int argc, char* argv[]) {
     // Modules
     astvdp::ComplementaryFusion fusion;
     astvdp::SafetyVerifierImpl verifier;
-    verifier.loadLimitsFromDb("output/test.db");  // will use defaults if empty
+    verifier.loadLimitsFromDb(db_path);  // falls back to defaults if table is empty/missing
     astvdp::DiagnosticEngine diagnostics;
     std::vector<astvdp::Anomaly> all_anomalies;
     size_t sample_count = 0;
@@ -115,6 +142,12 @@ int main(int argc, char* argv[]) {
     }
     ingest.close();
 
+    if (sample_count == 0) {
+        std::cerr << "No valid samples were processed from: " << input_path << "\n";
+        db.endSession(session_id, 0.0);
+        return 1;
+    }
+
     db.endSession(session_id, last_time);
 
     // Compute metrics
@@ -125,13 +158,24 @@ int main(int argc, char* argv[]) {
     // Generate report
     std::cout << "Generating report...\n";
     bool html_ok = astvdp::ReportGenerator::generateHtmlReport(
-        "output", mission_id, aircraft, last_time - first_time, metrics, all_anomalies
+        output_dir, mission_id, aircraft, last_time - first_time, metrics, all_anomalies
     );
 
     if (html_ok) {
-        std::cout << "Report: output/report.html\n";
-        // Optionally convert to PDF
-        // astvdp::ReportGenerator::convertHtmlToPdf("output/report.html", "output/report.pdf");
+        const std::string html_path = (std::filesystem::path(output_dir) / "report.html").string();
+        std::cout << "Report: " << html_path << "\n";
+
+        if (generate_pdf) {
+            const std::string pdf_path = (std::filesystem::path(output_dir) / "report.pdf").string();
+            if (astvdp::ReportGenerator::convertHtmlToPdf(html_path, pdf_path)) {
+                std::cout << "PDF: " << pdf_path << "\n";
+            } else {
+                std::cerr << "PDF generation failed. Ensure wkhtmltopdf is installed and in PATH.\n";
+            }
+        }
+    } else {
+        std::cerr << "Failed to generate HTML report.\n";
+        return 1;
     }
 
     std::cout << "Done. Session ID: " << session_id << "\n";

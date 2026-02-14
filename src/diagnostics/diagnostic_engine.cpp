@@ -83,6 +83,9 @@ void DiagnosticEngine::checkGnssStability() {
     static int dropout_count = 0;
 
     bool now_valid = (timestamps_.back() > 0); // placeholder logic
+    (void)last_valid;
+    (void)dropout_count;
+    (void)now_valid;
 
     // In real use, this would track actual GNSS health
     // For now, skip advanced logic—GNSS handled in verifier

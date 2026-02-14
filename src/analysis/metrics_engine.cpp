@@ -1,5 +1,5 @@
 #include "metrics_engine.h"
-#include <map>
+#include <algorithm>
 
 namespace astvdp {
 

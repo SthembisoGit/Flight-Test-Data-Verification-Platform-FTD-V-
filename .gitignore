@@ -1,0 +1,32 @@
+# Build directories and generated files
+/build/
+/build*/
+/out/
+/output/
+/output*/
+/ctest_output/
+/CMakeFiles/
+/CMakeCache.txt
+/compile_commands.json
+/Testing/
+/cmake_install.cmake
+
+# Compiler/linker artifacts
+*.obj
+*.o
+*.pdb
+*.ilk
+*.idb
+*.exp
+*.lib
+*.dll
+*.exe
+
+# IDE and local user files
+/.vs/
+/.vscode/
+*.user
+*.suo
+
+# Local dependency checkout
+/vcpkg/

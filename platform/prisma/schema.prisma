@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/@prisma/client/.prisma/client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum JobMode {
+  SIMULATE
+  CSV_UPLOAD
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum ArtifactKind {
+  DB
+  CSV
+  HTML
+  PDF
+  INPUT
+}
+
+enum AnomalySeverity {
+  CRITICAL
+  MAJOR
+  MINOR
+  OBSERVATION
+}
+
+enum RiskClass {
+  CRITICAL
+  MAJOR
+  MINOR
+  OBSERVATION
+}
+
+model Job {
+  id                String    @id @default(cuid())
+  mode              JobMode
+  status            JobStatus @default(QUEUED)
+  missionId         String
+  aircraft          String
+  inputFilename     String?
+  inputFilePath     String?
+  shouldGeneratePdf Boolean   @default(false)
+  outputDir         String
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  exitCode          Int?
+  log               String?   @db.LongText
+  error             String?   @db.LongText
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  session   Session?
+  artifacts Artifact[]
+
+  @@index([status, createdAt])
+}
+
+model Session {
+  id                 String   @id @default(cuid())
+  jobId              String   @unique
+  sourceSessionId    Int
+  missionId          String
+  aircraftType       String
+  startTime          Float
+  endTime            Float
+  stabilityIndex     Float
+  sensorReliability  Float
+  missionCompliance  Float
+  riskClassification RiskClass
+  createdAt          DateTime @default(now())
+
+  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  anomalies Anomaly[]
+
+  @@index([createdAt])
+  @@index([riskClassification])
+}
+
+model Anomaly {
+  id            String          @id @default(cuid())
+  sessionId     String
+  timestamp     Float
+  type          String
+  paramAffected String?
+  severity      AnomalySeverity
+  details       String?
+  createdAt     DateTime        @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, severity, timestamp])
+}
+
+model Artifact {
+  id           String       @id @default(cuid())
+  jobId        String
+  kind         ArtifactKind
+  fileName     String
+  relativePath String
+  sizeBytes    Int          @default(0)
+  createdAt    DateTime     @default(now())
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, kind, fileName])
+  @@index([jobId, kind])
+}

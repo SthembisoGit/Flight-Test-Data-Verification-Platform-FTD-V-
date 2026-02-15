@@ -1,0 +1,26 @@
+{
+  "name": "ast-vdp-platform",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AST-VDP full-stack platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -ws --if-present",
+    "dev:api": "npm run start:dev -w @astvdp/api",
+    "dev:worker": "npm run start:dev -w @astvdp/worker",
+    "dev:web": "npm run dev -w @astvdp/web",
+    "lint": "npm run lint -ws --if-present",
+    "test": "npm run test -ws --if-present",
+    "prisma:generate": "prisma generate --schema ./prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema ./prisma/schema.prisma",
+    "prisma:deploy": "prisma migrate deploy --schema ./prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "prisma": "^6.16.3",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

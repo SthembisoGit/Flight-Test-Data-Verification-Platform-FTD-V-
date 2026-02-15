@@ -30,3 +30,10 @@
 
 # Local dependency checkout
 /vcpkg/
+
+# Full-stack workspace artifacts
+/platform/node_modules/
+/platform/apps/web/.next/
+/platform/apps/*/dist/
+/platform/data/
+/platform/.env

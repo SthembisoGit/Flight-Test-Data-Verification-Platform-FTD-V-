@@ -106,3 +106,65 @@ Date: 2026-02-14
 - Documentation status: Updated (`README.md`) and auditable (`docs/audit-log.md`).
 - Remaining environment-specific requirement for full preset path:
   - Functional external vcpkg bootstrap/toolchain in local environment for `windows-msvc-release` preset.
+
+## Entry 06 - Full-Stack Platform Layer Added
+
+- Finding:
+  - Project had a validated C++ CLI workflow but no web/API/worker stack.
+  - Needed desktop-first frontend, backend orchestration, queue processing, and MySQL operational persistence.
+- Fix:
+  - Added `platform/` monorepo with:
+    - NestJS API (`platform/apps/api`)
+    - NestJS Worker + BullMQ (`platform/apps/worker`)
+    - Next.js frontend (`platform/apps/web`)
+    - Prisma schema and initial MySQL migration (`platform/prisma`)
+    - Shared contracts package (`platform/packages/contracts`)
+    - Docker Compose orchestration (`platform/docker-compose.yml`)
+  - Implemented required API endpoints and Swagger docs.
+  - Implemented async job execution pipeline spawning existing `astvdp` binary.
+  - Implemented SQLite-to-MySQL import for session/metrics/anomaly operational data.
+  - Implemented engineering-themed frontend routes:
+    - `/`
+    - `/runs/new`
+    - `/jobs/[jobId]`
+    - `/sessions`
+    - `/sessions/[sessionId]`
+    - `/sessions/[sessionId]/report`
+  - Added runbook docs and env templates in `platform/README.md` and `platform/.env.example`.
+- Validation Evidence:
+  - Code scaffolding completed for backend/worker/frontend and infrastructure files.
+  - Unit test scaffolding added for API health and worker engine command utilities.
+  - Full runtime validation depends on local MySQL/Redis availability and `ENGINE_BINARY_PATH` configuration at execution time.
+
+## Entry 07 - Full-Stack Hardening and Validation Pass
+
+- Finding:
+  - Jest TypeScript config did not include test globals, causing API/worker tests to fail.
+  - Web app used one API base URL for both browser and server-side rendering, which breaks in Docker networking.
+  - Worker Docker container expected external engine path but did not build a Linux engine binary.
+- Fix:
+  - Added `tsconfig.spec.json` for API and worker; updated Jest config to use it.
+  - Split web API bases:
+    - `CLIENT_API_BASE` from `NEXT_PUBLIC_API_BASE_URL`
+    - `SERVER_API_BASE` from `API_BASE_URL_SERVER`
+  - Updated client routes/components to use client API base for browser requests and report iframe URLs.
+  - Updated worker Dockerfile to compile Linux `astvdp` binary in image and copy to `/usr/local/bin/astvdp`.
+  - Updated worker runtime defaults for Docker and host resolution in `platform/apps/worker/src/common/config.ts`.
+  - Updated env/docs (`platform/.env.example`, `platform/README.md`) to reflect host vs Docker settings.
+- Validation Evidence:
+  - API test: pass
+    - `npm test -w @astvdp/api`
+  - Worker test: pass
+    - `npm test -w @astvdp/worker`
+  - API build: pass
+    - `npm run build -w @astvdp/api`
+  - Worker build: pass
+    - `npm run build -w @astvdp/worker`
+  - Web build: pass
+    - `npm run build -w @astvdp/web`
+  - C++ engine smoke:
+    - `--simulate` generated `output_web_sim/test.db`, `output_web_sim/sim_flight.csv`, `output_web_sim/report.html`
+    - `--input examples/sample_flight.csv` generated `output_web_input/test.db`, `output_web_input/report.html`
+    - SQLite checks confirmed tables plus inserted rows for sessions/metrics/anomalies.
+  - Infrastructure execution blocker in this environment:
+    - `docker`, `mysql`, and `redis-server` CLIs are not installed, so live queue + MySQL runtime E2E could not be executed here.

@@ -161,3 +161,15 @@ ast-vdp/
 ## License
 
 MIT (as intended by project metadata).
+
+## Full-Stack Web Platform
+
+A full-stack layer now exists under `platform/`:
+
+- NestJS API (`platform/apps/api`)
+- NestJS Worker (`platform/apps/worker`)
+- Next.js Frontend (`platform/apps/web`)
+- MySQL schema + migrations (`platform/prisma`)
+- Docker Compose stack (`platform/docker-compose.yml`)
+
+Read `platform/README.md` for end-to-end setup, env variables, and run instructions.

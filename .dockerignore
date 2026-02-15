@@ -1,0 +1,9 @@
+.git
+build
+ctest_output
+output
+output_*
+vcpkg
+**/node_modules
+**/.next
+**/dist
